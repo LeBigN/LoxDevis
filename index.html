@@ -328,7 +328,7 @@ const DESCRIPTIF_DEFAUT = 'Refacturation pour dommages constatés lors de la res
 const STORAGE_KEY = 'loxdevis-draft';
 const state = {
   numero:'', date:'', client:'', soustitre:'',
-  descriptif: DESCRIPTIF_DEFAUT,
+  descriptif: '',
   lignes:[], km:''
 };
 
@@ -499,7 +499,7 @@ async function generateDevisPDF(){
   doc.text(frDate, tX+cw+cw/2, tY+rh+15, {align:'center'});
 
   const bx = tX + 2*cw + 26, bw = W - M - bx;
-  const descTxt = state.descriptif || DESCRIPTIF_DEFAUT;
+  const descTxt = state.descriptif || '';
   doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5);
   const descLines = doc.splitTextToSize(descTxt, bw-16);
   const bh = Math.max(52, 24 + descLines.length*11 + 8);
