@@ -327,7 +327,6 @@ const DESCRIPTIF_DEFAUT = 'Refacturation pour dommages constatés lors de la res
 /* ===== État ===== */
 const STORAGE_KEY = 'loxdevis-draft';
 const state = {
-  type:'sortant',
   numero:'', date:'', client:'', soustitre:'',
   descriptif: DESCRIPTIF_DEFAUT,
   lignes:[], km:''
@@ -335,9 +334,13 @@ const state = {
 
 /* ===== Helpers ===== */
 function euros(n){ return (n||0).toLocaleString('fr-FR',{minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
+function lineMontant(l){
+  if(l && l.mt!=='' && l.mt!=null && !isNaN(parseFloat(l.mt))) return parseFloat(l.mt);
+  return (parseFloat(l.qty)||0)*(parseFloat(l.pu)||0);
+}
 function totalHT(){
   let t = 0;
-  state.lignes.forEach(l=>{ t += (parseFloat(l.qty)||0)*(parseFloat(l.pu)||0); });
+  state.lignes.forEach(l=>{ t += lineMontant(l); });
   const km = parseFloat(state.km)||0; if(km>0) t += km*KM_RATE;
   return t;
 }
@@ -359,18 +362,6 @@ function load(){
 function render(){
   const root = document.getElementById('sections');
   root.innerHTML = '';
-
-  // Type de devis
-  const typeCard = el('section',{class:'card'}, el('h2','Type de devis'),
-    el('p',{class:'hint'},"Sert à générer le descriptif automatiquement si tu le laisses vide."));
-  const cl = el('div',{class:'check-list'});
-  [['reception','Réception'],['sortant','Sortant'],['levee','Levée de réserves']].forEach(([v,label])=>{
-    const opt = el('div',{class:'check-opt'+(state.type===v?' checked':''), onclick:()=>{ state.type=v; save(); render(); }},
-      el('div',{class:'box'}, state.type===v?'✓':''), el('div',{class:'lbl'},label));
-    cl.append(opt);
-  });
-  typeCard.append(cl);
-  root.append(typeCard);
 
   // Informations
   const info = el('section',{class:'card'}, el('h2','Informations'));
@@ -420,10 +411,13 @@ function render(){
     const d = el('input',{class:'d-desc', type:'text', value:l.desc||'', placeholder:'Désignation',
       oninput:e=>{ l.desc=e.target.value; save(); }});
     const q = el('input',{class:'d-qty', type:'number', inputmode:'decimal', step:'any', min:'0', value:l.qty??'',
-      oninput:e=>{ l.qty=e.target.value; save(); refreshTotal(); }});
+      oninput:e=>{ l.qty=e.target.value; l.mt=''; save(); refreshTotal(); }});
     const p = el('input',{class:'d-qty', type:'number', inputmode:'decimal', step:'any', min:'0', value:l.pu??'', placeholder:'0.00',
-      oninput:e=>{ l.pu=e.target.value; save(); refreshTotal(); }});
-    const mt = el('div',{class:'d-mt'}, euros((parseFloat(l.qty)||0)*(parseFloat(l.pu)||0)));
+      oninput:e=>{ l.pu=e.target.value; l.mt=''; save(); refreshTotal(); }});
+    const mt = el('input',{class:'d-mt-input', type:'number', inputmode:'decimal', step:'any', min:'0',
+      style:'flex:0 0 78px; border:1px solid var(--line); border-radius:9px; padding:9px 4px; font-size:14px; text-align:right; font-weight:700;',
+      value: lineMontant(l).toFixed(2),
+      oninput:e=>{ l.mt=e.target.value; save(); refreshGrandTotal(); }});
     const del = el('button',{class:'d-del', onclick:()=>{ state.lignes.splice(i,1); save(); render(); }},'✕');
     row.append(d,q,p,mt,del);
     lignesCard.append(row);
@@ -451,18 +445,25 @@ function inp(type, val, oninput, ph, mode){
 function refreshTotal(){
   document.querySelectorAll('.devis-row').forEach((row,i)=>{
     const l = state.lignes[i]; if(!l) return;
-    row.querySelector('.d-mt').textContent = euros((parseFloat(l.qty)||0)*(parseFloat(l.pu)||0));
+    // Met à jour le champ Montant seulement s'il est en mode auto (non saisi manuellement)
+    if(l.mt===''||l.mt==null){
+      const inp = row.querySelector('.d-mt-input');
+      if(inp && document.activeElement!==inp) inp.value = lineMontant(l).toFixed(2);
+    }
   });
+  refreshGrandTotal();
+}
+function refreshGrandTotal(){
   const t = document.getElementById('devisTotal'); if(t) t.textContent = 'TOTAL HT : '+euros(totalHT());
 }
 
 /* ===== Génération PDF (calquée V31 : sans signature, contact agence) ===== */
 async function generateDevisPDF(){
-  if(!window.jspdf){ showToast("PDF indisponible — ouvre via l'URL GitHub Pages"); return; }
   const km = parseFloat(state.km)||0;
   if(!state.lignes.length && !(km>0)){ showToast('Ajoute au moins une ligne'); return; }
 
-  const { jsPDF } = window.jspdf;
+  const jsPDF = await ensureJsPDF();
+  if(!jsPDF){ showToast('Lib PDF non chargée — réessaie (connecté)'); return; }
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const W = doc.internal.pageSize.getWidth();
   const M = 48;
@@ -498,10 +499,7 @@ async function generateDevisPDF(){
   doc.text(frDate, tX+cw+cw/2, tY+rh+15, {align:'center'});
 
   const bx = tX + 2*cw + 26, bw = W - M - bx;
-  const typeLbl = state.type==='sortant' ? "l'état des lieux sortant des modules"
-                : state.type==='levee' ? 'la levée de réserves des modules'
-                : 'la réception des modules';
-  const descTxt = state.descriptif || ('Devis dégradations suite à '+typeLbl+(state.soustitre?' - '+state.soustitre:''));
+  const descTxt = state.descriptif || DESCRIPTIF_DEFAUT;
   doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5);
   const descLines = doc.splitTextToSize(descTxt, bw-16);
   const bh = Math.max(52, 24 + descLines.length*11 + 8);
@@ -532,7 +530,9 @@ async function generateDevisPDF(){
   const pdfLignes = state.lignes.slice();
   if(km>0) pdfLignes.push({desc:'Déplacement ('+String(state.km).replace('.',',')+' km)', qty:String(km), pu:String(KM_RATE)});
   pdfLignes.forEach((l,li)=>{
-    const qty=parseFloat(l.qty)||0, pu=parseFloat(l.pu)||0, mt=qty*pu; total+=mt;
+    const qty=parseFloat(l.qty)||0, pu=parseFloat(l.pu)||0;
+    const mt = (l.mt!=='' && l.mt!=null && !isNaN(parseFloat(l.mt))) ? parseFloat(l.mt) : qty*pu;
+    total+=mt;
     const lines = doc.splitTextToSize('- '+(l.desc||''), wDesc-14);
     const rowH = Math.max(31, lines.length*11 + 18);
     if(y+rowH>700){ doc.addPage(); y=60; }
@@ -574,6 +574,25 @@ async function generateDevisPDF(){
   const fname = 'Devis LOXAM Module - ' + ((state.client||'client').trim().replace(/[\\/:*?"<>|—–]/g,'-').replace(/\s+/g,' ').trim() || 'client') + '.pdf';
   await deliverPDF(doc, fname);
   showToast('Devis généré ✓');
+}
+
+/* ===== Chargement robuste de jsPDF ===== */
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = ()=>reject(new Error('load '+src));
+    document.head.appendChild(s);
+  });
+}
+async function ensureJsPDF(){
+  const pick = ()=> (window.jspdf && window.jspdf.jsPDF) || window.jsPDF || null;
+  if(pick()) return pick();
+  // 1) recharge le fichier local (offline)
+  try{ await loadScript('jspdf.umd.min.js'); }catch(e){}
+  if(pick()) return pick();
+  // 2) repli CDN (si connecté)
+  try{ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'); }catch(e){}
+  return pick();
 }
 
 /* ===== Livraison PDF robuste (mobile inclus) ===== */
