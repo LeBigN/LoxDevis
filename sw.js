@@ -1,4 +1,4 @@
-const CACHE_NAME = 'loxdevis-v6';
+const CACHE_NAME = 'loxdevis-v8';
 const FICHIERS = [
   './',
   './index.html',

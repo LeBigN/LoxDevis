@@ -559,7 +559,7 @@ async function generateDevisPDF(){
 
   const totY = Math.min(y + 110, 792);
   doc.setFillColor(...REDD); doc.setDrawColor(...REDD); doc.setLineWidth(1);
-  doc.roundedRect(W-M-300, totY, 170, 26, 6, 6, 'FD');
+  doc.roundedRect(W-M-300, totY, 164, 26, 6, 6, 'FD');
   doc.setFillColor(...WARMF); doc.setDrawColor(...WARMB);
   doc.roundedRect(W-M-130, totY, 130, 26, 6, 6, 'FD');
   doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
