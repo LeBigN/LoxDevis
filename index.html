@@ -329,7 +329,7 @@ const STORAGE_KEY = 'loxdevis-draft';
 const state = {
   numero:'', date:'', client:'', soustitre:'',
   descriptif: '',
-  lignes:[], km:''
+  lignes:[], km:'', remise:''
 };
 
 /* ===== Helpers ===== */
@@ -344,6 +344,12 @@ function totalHT(){
   const km = parseFloat(state.km)||0; if(km>0) t += km*KM_RATE;
   return t;
 }
+function remisePct(){
+  const p = parseFloat(state.remise);
+  return (isNaN(p) || p<=0) ? 0 : p;
+}
+function montantRemise(){ return totalHT() * remisePct() / 100; }
+function totalNetHT(){ return totalHT() - montantRemise(); }
 let toastTimer=null;
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -428,8 +434,36 @@ function render(){
     inp('number', state.km, v=>{ state.km=v; refreshTotal(); }, '0','decimal'));
   kmRow.append(kmWrap);
   lignesCard.append(kmRow);
-  lignesCard.append(el('div',{class:'devis-total', id:'devisTotal'}, 'TOTAL HT : '+euros(totalHT())));
+
+  // Remise client
+  const remSel = el('select',{onchange:e=>{ state.remise=e.target.value; save(); renderTotals(); }});
+  remSel.append(el('option',{value:''},'Aucune remise'));
+  for(let p=10; p<=50; p+=5){
+    const o = el('option',{value:String(p)}, p+' %');
+    if(String(state.remise)===String(p)) o.selected = true;
+    remSel.append(o);
+  }
+  lignesCard.append(el('div',{class:'field', style:'margin-top:6px;'},
+    el('label','Remise client'), remSel));
+
+  lignesCard.append(el('div',{id:'devisRecap'}));
   root.append(lignesCard);
+  renderTotals();
+}
+
+function renderTotals(){
+  const box = document.getElementById('devisRecap');
+  if(!box) return;
+  box.innerHTML = '';
+  const brut = totalHT(), pct = remisePct(), rem = montantRemise();
+  const lineStyle = 'display:flex; justify-content:space-between; font-size:13px; padding:5px 2px;';
+  if(pct>0){
+    box.append(el('div',{style:lineStyle+'color:var(--sub);'},
+      el('span','Sous-total HT'), el('span', euros(brut))));
+    box.append(el('div',{style:lineStyle+'color:var(--red); font-weight:700; border-bottom:1px solid var(--line); margin-bottom:4px;'},
+      el('span','Remise '+pct+' %'), el('span','− '+euros(rem))));
+  }
+  box.append(el('div',{class:'devis-total', id:'devisTotal'}, 'TOTAL HT : '+euros(brut-rem)));
 }
 
 function field(labelTxt, input){
@@ -454,7 +488,7 @@ function refreshTotal(){
   refreshGrandTotal();
 }
 function refreshGrandTotal(){
-  const t = document.getElementById('devisTotal'); if(t) t.textContent = 'TOTAL HT : '+euros(totalHT());
+  renderTotals();
 }
 
 /* ===== Génération PDF (calquée V31 : sans signature, contact agence) ===== */
@@ -558,13 +592,30 @@ async function generateDevisPDF(){
   doc.text(polit, M, y+26);
 
   const totY = Math.min(y + 110, 792);
+  const pct = remisePct();
+  const rem = total * pct / 100;
+  const net = total - rem;
+
+  // Sous-total + remise (au-dessus du Total HT)
+  if(pct>0){
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(17,24,39);
+    doc.text('Sous-total HT', W-M-300, totY-27);
+    doc.text(total.toFixed(2)+' €', W-M-8, totY-27, {align:'right'});
+    doc.setFont('helvetica','bold'); doc.setTextColor(...REDD);
+    doc.text('Remise '+pct+' %', W-M-300, totY-12);
+    doc.text('- '+rem.toFixed(2)+' €', W-M-8, totY-12, {align:'right'});
+    doc.setTextColor(17,24,39);
+    doc.setDrawColor(...WARMB); doc.setLineWidth(0.8);
+    doc.line(W-M-300, totY-7, W-M, totY-7);
+  }
+
   doc.setFillColor(...REDD); doc.setDrawColor(...REDD); doc.setLineWidth(1);
   doc.roundedRect(W-M-300, totY, 164, 26, 6, 6, 'FD');
   doc.setFillColor(...WARMF); doc.setDrawColor(...WARMB);
   doc.roundedRect(W-M-130, totY, 130, 26, 6, 6, 'FD');
   doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
   doc.setTextColor(255); doc.text('Total HT', W-M-294, totY+17);
-  doc.setTextColor(17,24,39); doc.text(total.toFixed(2)+'€ht', W-M-8, totY+17, {align:'right'});
+  doc.setTextColor(17,24,39); doc.text(net.toFixed(2)+'€ht', W-M-8, totY+17, {align:'right'});
 
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(17,24,39);
   doc.text(DEVIS_AGENCE.nom, M, totY+2);
