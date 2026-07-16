@@ -315,7 +315,7 @@ const PRIX_SAV = [
     ['Forfait nettoyage module sanitaire',120]
   ]}
 ];
-const KM_RATE = 1.60;
+const KM_RATE = 2.24;
 const DEVIS_AGENCE = {
   nom:'LOXAM Module PACA',
   adresse:"346 All. Henri Moissan, 13130 Berre-l'Étang",
@@ -430,8 +430,9 @@ function render(){
   });
   const kmRow = el('div',{class:'field', style:'display:flex; align-items:flex-end; gap:10px; margin-top:6px;'});
   const kmWrap = el('div',{style:'flex:1;'},
-    el('label','Déplacement (km) — '+KM_RATE.toFixed(2).replace('.',',')+' € HT/km'),
-    inp('number', state.km, v=>{ state.km=v; refreshTotal(); }, '0','decimal'));
+    el('label','Déplacement'),
+    inp('number', state.km, v=>{ state.km=v; refreshTotal(); }, 'Nombre de km','decimal'),
+    el('p',{class:'hint'},'Nombre de km × '+KM_RATE.toFixed(2).replace('.',',')+' € HT'));
   kmRow.append(kmWrap);
   lignesCard.append(kmRow);
 
