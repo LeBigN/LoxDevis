@@ -624,7 +624,7 @@ async function generateDevisPDF(){
   doc.text(DEVIS_AGENCE.email, M, totY+24);
 
   // Mention légale (bas de chaque page)
-  const MENTION = "LOXAM MODULE – S.A.S.U. CAPITAL DE 222 559 930 € – SIEGE SOCIAL : 276, RUE NICOLAS COATANLEM – 56850 CAUDAN – R.C.S. LORIENT B 433 911 948 – N° T.V.A : FR27 433 911 948 – NAF 7732Z";
+  const MENTION = "LOXAM MODULE – S.A.S.U. CAPITAL DE 487 500 € – SIEGE SOCIAL : 276, RUE NICOLAS COATANLEM – 56850 CAUDAN – R.C.S. LORIENT B 433 911 948 – N° T.V.A : FR27 433 911 948 – NAF 7732Z";
   const H = doc.internal.pageSize.getHeight();
   doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(130);
   const mLines = doc.splitTextToSize(MENTION, W - 2*M);
